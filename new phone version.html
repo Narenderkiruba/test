@@ -1,0 +1,766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>SmartGuide - Precision Agriculture</title>
+
+<style>
+:root{--green:#236b3b;--light:#eef6ee;--ink:#1d2b22;--line:#d5e1d5}
+*{box-sizing:border-box}body{margin:0;font-family:Arial,sans-serif;background:#f4f7f4;color:var(--ink)}
+.topbar{background:#174b2a;color:white;padding:16px 22px;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:2}.logo{font-size:22px;font-weight:bold}.status{display:flex;gap:18px;font-size:13px}
+.sidebar{width:190px;position:fixed;top:60px;bottom:0;background:#fff;padding:16px 10px;box-shadow:2px 0 8px #0001}.sidebar button{display:block;width:100%;text-align:left;margin:6px 0;background:white;color:#214d2c;border:0;padding:12px;border-radius:8px;cursor:pointer}.sidebar button:hover{background:#e5f2e6}
+.content{margin-left:210px;padding:24px;max-width:1400px}h1{margin-top:0;color:#1d572e}.subtitle{color:#647368}.page{display:none}.page.active{display:block}
+.cards,.results,.navigation-data{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:14px;margin:20px 0}.card,.results>div,.navigation-data>div,.input-card,.information,.report{background:white;border:1px solid var(--line);border-radius:12px;padding:16px;box-shadow:0 2px 8px #00000008}.card h2{font-size:17px;margin-top:0}.card p{margin-bottom:0}.big-buttons,.map-controls,.direction-buttons{display:flex;gap:10px;flex-wrap:wrap;margin:18px 0}
+button{background:var(--green);color:white;border:0;padding:11px 15px;border-radius:8px;cursor:pointer;font-weight:600}button:hover{filter:brightness(1.08)}select,input{padding:10px;border:1px solid #b9cabb;border-radius:7px;font-size:15px;max-width:100%}
+.input-card{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.input-card label{font-weight:bold}.input-card input{width:95px}.input-card .dimension{width:110px}
+.map,.plan-map,.navigation{background:white;border:1px solid var(--line);border-radius:12px;padding:10px;overflow:hidden}canvas{display:block;width:100%;height:360px}#guidanceCanvas{height:400px} .information{display:flex;gap:20px;flex-wrap:wrap;margin-top:16px}.information p{margin:5px 0}
+.results strong{font-size:24px;color:var(--green)}.results h3{font-size:14px;margin-top:0}.navigation{position:relative}#guidanceMessage{font-size:18px;font-weight:bold;padding:10px;color:var(--green)}.navigation-data span{color:#647368}.navigation-data strong{display:block;font-size:18px;margin-top:7px}
+.progress-container{height:22px;background:#dce8dd;border-radius:20px;overflow:hidden}.progress-bar{height:100%;width:0;background:#30934a;transition:width .2s}.report{max-width:600px}.report p{padding:8px;border-bottom:1px solid #edf0ed}
+@media(max-width:760px){.sidebar{position:static;width:auto;display:flex;overflow:auto;gap:4px;padding:8px}.sidebar button{white-space:nowrap;width:auto}.content{margin:0;padding:14px}.topbar{position:static}.input-card{align-items:flex-start}.information{display:block}canvas{height:280px}}
+</style>
+</head>
+
+<body>
+
+<!-- ================= HEADER ================= -->
+
+<header class="topbar">
+
+    <div class="logo">
+        🌾 SmartGuide
+    </div>
+
+    <div class="status">
+        <span id="gnssStatus">Phone GPS: Not started</span>
+        <span id="bleStatus">ESP32: Not connected</span>
+    </div>
+
+</header>
+
+
+<!-- ================= SIDEBAR ================= -->
+
+<nav class="sidebar">
+
+    <button onclick="showPage('dashboard')">
+        🏠 Dashboard
+    </button>
+
+    <button onclick="showPage('mapping')">
+        🗺️ Field Mapping
+    </button>
+
+    <button onclick="showPage('planning')">
+        📐 Field Planning
+    </button>
+
+    <button onclick="showPage('guidance')">
+        🧭 Live Guidance
+    </button>
+
+    <button onclick="showPage('progress')">
+        📊 Progress
+    </button>
+
+    <button onclick="showPage('reports')">
+        📋 Reports
+    </button>
+
+</nav>
+
+
+<!-- ================= MAIN CONTENT ================= -->
+
+<main class="content">
+
+
+<!-- ================= DASHBOARD ================= -->
+
+<section id="dashboard" class="page active">
+
+    <h1>Precision Agriculture Guidance</h1>
+
+    <p class="subtitle">Phone/Laptop Location Mode · Grid planning and live location guidance without external hardware</p>
+    <div class="information"><p><strong>No hardware required for software testing.</strong> Use phone location or your laptop browser location service. If location is unavailable, use System Demo Data to test grid planning and simulated guidance. Demo coordinates are fictional and are not your actual location.</p></div>
+
+
+    <div class="cards">
+
+        <div class="card">
+            <h2>🚜 Vehicle</h2>
+
+            <select id="vehicleType">
+
+                <option value="Tractor">
+                    Tractor
+                </option>
+
+                <option value="Mini Tiller">
+                    Mini Tiller
+                </option>
+
+            </select>
+
+        </div>
+
+
+        <div class="card">
+
+            <h2>📡 GNSS</h2>
+
+            <p id="gnssText">Not started</p>
+
+        </div>
+
+
+        <div class="card">
+
+            <h2>🌀 IMU</h2>
+
+            <p id="imuText">Waiting for ESP32 data</p>
+
+        </div>
+
+
+        <div class="card">
+
+            <h2>📶 Bluetooth</h2>
+
+            <p id="bleText">Not connected</p>
+            <button onclick="connectESP32()">Connect ESP32 (optional)</button>
+            <button onclick="disconnectESP32()">Disconnect</button>
+
+        </div>
+
+    </div>
+
+
+    <div class="big-buttons">
+
+        <button onclick="showPage('mapping')">
+            🗺️ Create New Field
+        </button>
+
+        <button onclick="showPage('planning')">
+            📐 Plan Operation
+        </button>
+
+        <button onclick="showPage('guidance')">
+            🧭 Start Guidance
+        </button>
+
+    </div>
+
+</section>
+
+
+
+<!-- ================= FIELD MAPPING ================= -->
+
+<section id="mapping" class="page">
+
+    <h1>🗺️ Field Boundary Mapping</h1>
+
+    <div class="map">
+
+        <canvas id="mapCanvas"></canvas>
+
+    </div>
+
+
+    <div class="map-controls">
+
+        <button onclick="loadDemoSystemData()">🧪 Load System Demo Data</button>
+        <button onclick="startPhoneGPS()">📡 Start Phone GPS</button>
+        <button onclick="stopPhoneGPS()">Stop GPS</button>
+        <button onclick="startMapping()">
+            ▶ Start Mapping
+        </button>
+
+        <button onclick="addBoundaryPoint()">
+            📍 Capture GPS Point
+        </button>
+
+        <button onclick="finishMapping()">
+            ✓ Finish Boundary
+        </button>
+
+        <button onclick="clearBoundary()">
+            🗑 Clear
+        </button>
+
+    </div>
+
+
+    <div class="information">
+
+        <p>GPS Status: <strong id="gpsAccuracy">Waiting for location permission</strong></p>
+        <p>Data mode: <strong id="dataMode">No data loaded</strong></p>
+        <p>Last GPS: <strong id="gpsCoordinates">--</strong></p>
+        <p>
+            Boundary Points:
+            <strong id="pointCount">0</strong>
+        </p>
+
+        <p>
+            Area:
+            <strong id="fieldArea">0</strong> acres
+        </p>
+
+        <p>
+            Perimeter:
+            <strong id="perimeter">0</strong> m
+        </p>
+
+        <p>
+            Approximate Length:
+            <strong id="fieldLength">0</strong> m
+        </p>
+
+        <p>
+            Approximate Width:
+            <strong id="fieldWidth">0</strong> m
+        </p>
+
+    </div>
+
+</section>
+
+
+
+<!-- ================= FIELD PLANNING ================= -->
+
+<section id="planning" class="page">
+
+    <h1>📐 Field Planning</h1>
+
+
+    <div class="input-card">
+
+        <label>Field Length</label>
+        <input class="dimension" type="number" id="planLength" value="20" min="1">
+        <span>m</span>
+
+        <label>Field Width</label>
+        <input class="dimension" type="number" id="planWidth" value="12" min="1">
+        <span>m</span>
+
+        <label>
+            Row Spacing
+        </label>
+
+        <input
+            type="number"
+            id="rowSpacing"
+            value="60"
+            min="1"
+        >
+
+        <span>cm</span>
+
+
+        <label>
+            Plant Spacing
+        </label>
+
+        <input
+            type="number"
+            id="plantSpacing"
+            value="30"
+            min="1"
+        >
+
+        <span>cm</span>
+
+
+        <label>
+            Implement Width
+        </label>
+
+        <input
+            type="number"
+            id="implementWidth"
+            value="180"
+            min="1"
+        >
+
+        <span>cm</span>
+
+
+        <button onclick="calculatePlan()">
+            ⚙ Calculate Plan
+        </button>
+
+    </div>
+
+
+    <div class="results">
+
+        <div>
+            <h3>Rows</h3>
+            <strong id="totalRows">
+                0
+            </strong>
+        </div>
+
+
+        <div>
+            <h3>Plants / Row</h3>
+            <strong id="plantsPerRow">
+                0
+            </strong>
+        </div>
+
+
+        <div>
+            <h3>Total Plants</h3>
+            <strong id="totalPlants">
+                0
+            </strong>
+        </div>
+
+    </div>
+
+
+    <div class="plan-map">
+
+        <canvas id="planCanvas"></canvas>
+
+    </div>
+
+
+    <button onclick="showPage('guidance')">
+        🚜 Start Work
+    </button>
+
+</section>
+
+
+
+<!-- ================= LIVE GUIDANCE ================= -->
+
+<section id="guidance" class="page">
+
+    <h1>🧭 Live Vehicle Guidance</h1>
+    <p id="hardwareData">No external hardware required. Start Phone GPS to use this device/browser location. ESP32 telemetry is optional.</p>
+    <div class="information">
+      <p>External GNSS fix: <strong id="externalFixStatus">Waiting</strong></p>
+      <p>GNSS speed: <strong id="externalSpeed">-- km/h</strong></p>
+      <p>Heading (IMU estimate): <strong id="externalHeading">--°</strong></p>
+      <p>Grid alert radius: <input id="intersectionRadius" type="number" min="0.5" max="20" step="0.5" value="3" style="width:75px"> m</p>
+    </div>
+
+
+    <div class="navigation">
+
+        <canvas id="guidanceCanvas"></canvas>
+
+
+        <div id="guidanceMessage">
+
+            ✓ ON TRACK
+
+        </div>
+
+    </div>
+
+
+    <div class="navigation-data">
+
+        <div>
+
+            <span>Row</span>
+
+            <strong>
+                <span id="currentRow">
+                    1
+                </span>
+                /
+                <span id="navTotalRows">
+                    0
+                </span>
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <span>Speed</span>
+
+            <strong>
+                <span id="speed">
+                    0
+                </span>
+                km/h
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <span>Deviation</span>
+
+            <strong>
+                <span id="deviation">
+                    0
+                </span>
+                cm
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <span>Progress</span>
+
+            <strong>
+                <span id="navProgress">
+                    0
+                </span>
+                %
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <span>ETA</span>
+
+            <strong id="eta">
+                --
+            </strong>
+
+        </div>
+
+    </div>
+
+
+    <div class="direction-buttons">
+
+        <button onclick="manualMove('left')">
+            ⬅ LEFT
+        </button>
+
+        <button onclick="manualMove('straight')">
+            ⬆ STRAIGHT
+        </button>
+
+        <button onclick="manualMove('right')">
+            RIGHT ➡
+        </button>
+
+    </div>
+
+
+    <button onclick="enableSound()">🔊 Enable Intersection Sound</button>
+    <button
+        id="startSimulation"
+        onclick="startGuidanceSimulation()"
+    >
+        ▶ Start Vehicle (Simulation)
+    </button>
+
+</section>
+
+
+
+<!-- ================= PROGRESS ================= -->
+
+<section id="progress" class="page">
+
+    <h1>📊 Work Progress</h1>
+
+
+    <div class="progress-container">
+
+        <div
+            class="progress-bar"
+            id="progressBar"
+        >
+        </div>
+
+    </div>
+
+
+    <h2 id="progressText">
+        0%
+    </h2>
+
+
+    <div class="results">
+
+        <div>
+
+            <h3>Completed Rows</h3>
+
+            <strong id="completedRows">
+                0
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <h3>Remaining Rows</h3>
+
+            <strong id="remainingRows">
+                0
+            </strong>
+
+        </div>
+
+
+        <div>
+
+            <h3>Area Covered</h3>
+
+            <strong id="coveredArea">
+                0 acres
+            </strong>
+
+        </div>
+
+    </div>
+
+</section>
+
+
+
+<!-- ================= REPORTS ================= -->
+
+<section id="reports" class="page">
+
+    <h1>📋 Work Report</h1>
+
+
+    <div class="report">
+
+        <p>
+            <strong>Vehicle:</strong>
+            <span id="reportVehicle">
+                -
+            </span>
+        </p>
+
+
+        <p>
+            <strong>Field Area:</strong>
+            <span id="reportArea">
+                -
+            </span>
+        </p>
+
+
+        <p>
+            <strong>Rows:</strong>
+            <span id="reportRows">
+                -
+            </span>
+        </p>
+
+
+        <p>
+            <strong>Total Plants:</strong>
+            <span id="reportPlants">
+                -
+            </span>
+        </p>
+
+
+        <p>
+            <strong>Work Status:</strong>
+            <span id="reportStatus">
+                Not Started
+            </span>
+        </p>
+
+    </div>
+
+</section>
+
+
+</main>
+
+
+<script>
+const $ = id => document.getElementById(id);
+let boundary=[], mapping=false, plan={length:20,width:12,rowSpacing:.6,plantSpacing:.3,rows:20,plantsPerRow:66,totalPlants:1320};
+let simTimer=null, simStep=0, audioCtx=null, lastBeepStep=-1, demoDataMode=false;
+function showPage(id){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));$(id).classList.add('active');if(id==='planning')drawPlan();if(id==='mapping')drawBoundary();if(id==='guidance')drawGuidance();}
+function setupCanvas(canvas){const r=canvas.getBoundingClientRect(),dpr=window.devicePixelRatio||1;canvas.width=Math.max(300,r.width*dpr);canvas.height=Math.max(220,r.height*dpr);const c=canvas.getContext('2d');c.setTransform(dpr,0,0,dpr,0,0);return {c,w:r.width,h:r.height};}
+function drawPlan(){
+ const {c,w,h}=setupCanvas($('planCanvas'));c.clearRect(0,0,w,h);c.fillStyle='#f8fbf7';c.fillRect(0,0,w,h);
+ const pad=42,scale=Math.min((w-pad*2)/plan.length,(h-pad*2)/plan.width),fw=plan.length*scale,fh=plan.width*scale,x=(w-fw)/2,y=(h-fh)/2;
+ c.fillStyle='#e6f2dc';c.fillRect(x,y,fw,fh);c.strokeStyle='#245f35';c.lineWidth=2;c.strokeRect(x,y,fw,fh);
+ // Row lines are generated from row spacing; cross-lines are generated from plant spacing.
+ c.lineWidth=1;c.strokeStyle='#3e8b50';
+ for(let xx=plan.rowSpacing;xx<plan.width;xx+=plan.rowSpacing){let px=x+xx*scale;c.beginPath();c.moveTo(px,y);c.lineTo(px,y+fh);c.stroke();}
+ c.strokeStyle='#90b5d8';c.setLineDash([4,4]);
+ for(let yy=plan.plantSpacing;yy<plan.length;yy+=plan.plantSpacing){let py=y+yy*scale;c.beginPath();c.moveTo(x,py);c.lineTo(x+fw,py);c.stroke();}
+ c.setLineDash([]);
+ // intersection points
+ c.fillStyle='#e07b24';const dot=Math.max(1.5,Math.min(3,scale*.07));
+ for(let xx=plan.rowSpacing;xx<plan.width;xx+=plan.rowSpacing){for(let yy=plan.plantSpacing;yy<plan.length;yy+=plan.plantSpacing){c.beginPath();c.arc(x+xx*scale,y+yy*scale,dot,0,Math.PI*2);c.fill();}}
+ c.fillStyle='#203b27';c.font='12px Arial';c.fillText(`${plan.length} m`,x+fw/2-18,y+fh+20);c.fillText(`${plan.width} m`,Math.max(2,x-35),y+fh/2);
+ c.fillStyle='#365440';c.fillText('Green: row lines   Blue: plant-spacing cross-lines   Orange: intersections',12,18);
+}
+function calculatePlan(){
+ if(simTimer!==null){clearInterval(simTimer);simTimer=null;$('startSimulation').textContent='▶ Start Vehicle';}
+ const length=Number($('planLength').value),width=Number($('planWidth').value),rs=Number($('rowSpacing').value)/100,ps=Number($('plantSpacing').value)/100,iw=Number($('implementWidth').value)/100;
+ if(![length,width,rs,ps,iw].every(v=>Number.isFinite(v)&&v>0)){alert('Enter positive values for all field and spacing inputs.');return;}
+ plan={length,width,rowSpacing:rs,plantSpacing:ps,implementWidth:iw,rows:Math.max(1,Math.floor(width/rs)),plantsPerRow:Math.max(1,Math.floor(length/ps)+1)};
+ plan.totalPlants=plan.rows*plan.plantsPerRow;
+ $('totalRows').textContent=plan.rows;$('plantsPerRow').textContent=plan.plantsPerRow;$('totalPlants').textContent=plan.totalPlants;$('navTotalRows').textContent=plan.rows;
+ $('fieldLength').textContent=length.toFixed(1);$('fieldWidth').textContent=width.toFixed(1);$('fieldArea').textContent=(length*width/4046.856).toFixed(3);
+ $('perimeter').textContent=(2*(length+width)).toFixed(1);
+ $('reportVehicle').textContent=$('vehicleType').value;$('reportArea').textContent=(length*width/4046.856).toFixed(3)+' acres';$('reportRows').textContent=plan.rows;$('reportPlants').textContent=plan.totalPlants;
+ drawPlan();drawGuidance();
+}
+let gpsWatchId=null, latestPosition=null, latestHardware=null, latestHardwareAt=0, liveVehicleXY=null, bleDevice=null, bleServer=null, bleCharacteristic=null, bleBuffer='', lastHardwareIntersection='';
+const NUS_SERVICE='6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_RX='6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const NUS_TX='6e400003-b5a3-f393-e0a9-e50e24dcca9e';
+function setGpsStatus(text,ok=false){$('gnssStatus').textContent='Phone GPS: '+text;$('gnssText').textContent=text;$('gnssStatus').style.color=ok?'#a8f0b5':'#ffd3a6';}
+function loadDemoSystemData(){
+ // Entirely synthetic coordinates and telemetry for software testing; not the user's real location.
+ demoDataMode=true;stopPhoneGPS();
+ const baseLat=12.000000, baseLon=80.000000, length=40, width=24;
+ const dLat=length/111320, dLon=width/(111320*Math.cos(baseLat*Math.PI/180));
+ boundary=[
+  {lat:baseLat,lon:baseLon,accuracy:1.5,timestamp:Date.now(),demo:true},
+  {lat:baseLat,lon:baseLon+dLon,accuracy:1.5,timestamp:Date.now(),demo:true},
+  {lat:baseLat+dLat,lon:baseLon+dLon,accuracy:1.5,timestamp:Date.now(),demo:true},
+  {lat:baseLat+dLat,lon:baseLon,accuracy:1.5,timestamp:Date.now(),demo:true}
+ ];
+ mapping=false;latestPosition=null;latestHardware={lat:baseLat,lon:baseLon,accuracy:1.5,fix:true,speed:0,roll:0,pitch:0,yaw:0,demo:true};latestHardwareAt=Date.now();
+ $('pointCount').textContent=boundary.length;$('gpsCoordinates').textContent=baseLat.toFixed(6)+', '+baseLon.toFixed(6);$('gpsAccuracy').textContent='SIMULATED ±1.5 m';$('dataMode').textContent='SYSTEM DEMO DATA — NOT REAL GPS';
+ $('gnssStatus').textContent='GNSS: Demo data';$('gnssStatus').style.color='#ffd3a6';$('bleStatus').textContent='ESP32: Demo mode (no hardware)';$('bleStatus').style.color='#ffd3a6';$('bleText').textContent='Demo mode — no device connected';$('imuText').textContent='Simulated roll 0°, pitch 0°, yaw 0°';$('externalFixStatus').textContent='Simulated fix';$('externalSpeed').textContent='0.0 km/h';$('externalHeading').textContent='0.0°';
+ const m=polygonMetrics(boundary);$('fieldArea').textContent=(m.area/4046.856).toFixed(3);$('perimeter').textContent=m.perimeter.toFixed(1);$('fieldLength').textContent=m.length.toFixed(1);$('fieldWidth').textContent=m.width.toFixed(1);$('planLength').value=length;$('planWidth').value=width;
+ $('hardwareData').textContent='SYSTEM DEMO DATA ONLY — synthetic GNSS/IMU telemetry. No ESP32 or sensors are connected.';
+ $('reportStatus').textContent='Demo data loaded';$('guidanceMessage').textContent='Demo field loaded. Calculate plan, enable sound, then start vehicle simulation.';
+ calculatePlan();drawBoundary();drawGuidance();showPage('mapping');
+}
+function startPhoneGPS(){
+ demoDataMode=false;latestHardware=null;latestHardwareAt=0;$('dataMode').textContent='Live phone/laptop location requested';$('hardwareData').textContent='Using browser device location. No ESP32 or external sensors are required for this mode.';
+ if(!('geolocation' in navigator)){setGpsStatus('Geolocation not supported');alert('This browser does not support GPS location. Try Chrome or Edge on HTTPS.');return;}
+ if(!window.isSecureContext){setGpsStatus('HTTPS required');alert('Phone GPS access usually requires HTTPS or localhost. Open this page from a secure HTTPS site, not a file:// URL.');return;}
+ if(gpsWatchId!==null)navigator.geolocation.clearWatch(gpsWatchId);
+ setGpsStatus('Requesting permission…');
+ gpsWatchId=navigator.geolocation.watchPosition(pos=>{latestPosition=pos;const {latitude,longitude,accuracy}=pos.coords;setGpsStatus('Receiving device location',true);$('gpsAccuracy').textContent='±'+Math.round(accuracy)+' m';$('gpsCoordinates').textContent=latitude.toFixed(6)+', '+longitude.toFixed(6);$('dataMode').textContent='LIVE DEVICE LOCATION — '+(pos.coords.speed!=null?'speed available':'speed not provided');$('externalFixStatus').textContent='Phone/laptop location active';if(pos.coords.speed!=null&&pos.coords.speed>=0){$('externalSpeed').textContent=(pos.coords.speed*3.6).toFixed(1)+' km/h';$('speed').textContent=(pos.coords.speed*3.6).toFixed(1);}else{$('externalSpeed').textContent='Not provided';}if(boundary.length>=2&&!mapping){updateLiveVehiclePosition({lat:latitude,lon:longitude,accuracy,fix:true,speed:pos.coords.speed==null?null:pos.coords.speed*3.6,source:'device'});}drawBoundary();},err=>{let msg=err.code===1?'Permission denied':err.code===2?'Position unavailable':'GPS request timed out';setGpsStatus(msg);$('gpsAccuracy').textContent=msg;alert('GPS error: '+msg+'. Check location permission and device location settings.');},{enableHighAccuracy:true,maximumAge:1000,timeout:15000});
+}
+function stopPhoneGPS(){if(gpsWatchId!==null){navigator.geolocation.clearWatch(gpsWatchId);gpsWatchId=null;}setGpsStatus('Stopped');}
+function startMapping(){demoDataMode=false;$('dataMode').textContent='Boundary capture';mapping=true;boundary=[];$('pointCount').textContent='0';drawBoundary();$('gpsAccuracy').textContent=latestPosition?'GPS ready':'Start Phone GPS first';}
+function addBoundaryPoint(){
+ if(!mapping)mapping=true;
+ // Prefer a recent external NEO-8M fix; fall back to the phone's real geolocation.
+ let latitude,longitude,accuracy,timestamp;
+ if(latestHardware && !latestHardware.demo && Date.now()-latestHardwareAt<5000 && Number.isFinite(Number(latestHardware.lat)) && Number.isFinite(Number(latestHardware.lon)) && latestHardware.fix){
+   latitude=Number(latestHardware.lat);longitude=Number(latestHardware.lon);accuracy=Number(latestHardware.accuracy)||10;timestamp=latestHardwareAt;
+ } else if(latestPosition){
+   latitude=latestPosition.coords.latitude;longitude=latestPosition.coords.longitude;accuracy=latestPosition.coords.accuracy;timestamp=latestPosition.timestamp;
+ } else {alert('No device location available yet. Click Start Phone GPS and allow browser location permission. On a laptop, enable Windows/macOS location services. If the device cannot provide location, use Load System Demo Data for software testing.');return;}
+ if(accuracy>10&&!confirm('Reported GPS accuracy is about '+Math.round(accuracy)+' m. This may be too inaccurate for field planning. Capture anyway?'))return;
+ boundary.push({lat:latitude,lon:longitude,accuracy:accuracy,timestamp:timestamp});
+ $('pointCount').textContent=boundary.length;$('gpsCoordinates').textContent=latitude.toFixed(6)+', '+longitude.toFixed(6);drawBoundary();
+}
+function latLonToLocal(points){if(!points.length)return [];const lat0=points.reduce((a,p)=>a+p.lat,0)/points.length*Math.PI/180;return points.map(p=>({x:p.lon*Math.PI/180*6371000*Math.cos(lat0),y:p.lat*Math.PI/180*6371000}));}
+function polygonMetrics(points){if(points.length<3)return {area:0,perimeter:0,length:0,width:0};const xy=latLonToLocal(points);let twice=0,perimeter=0;for(let i=0;i<xy.length;i++){const a=xy[i],b=xy[(i+1)%xy.length];twice+=a.x*b.y-b.x*a.y;perimeter+=Math.hypot(b.x-a.x,b.y-a.y);}const origin=xy[0],edge=xy[1],ex=edge.x-origin.x,ey=edge.y-origin.y,L=Math.hypot(ex,ey)||1,ux=ex/L,uy=ey/L;let minAlong=Infinity,maxAlong=-Infinity,minCross=Infinity,maxCross=-Infinity;for(const p of xy){const dx=p.x-origin.x,dy=p.y-origin.y;const along=dx*ux+dy*uy,cross=-dx*uy+dy*ux;minAlong=Math.min(minAlong,along);maxAlong=Math.max(maxAlong,along);minCross=Math.min(minCross,cross);maxCross=Math.max(maxCross,cross);}return {area:Math.abs(twice)/2,perimeter,length:maxAlong-minAlong,width:maxCross-minCross};}
+function finishMapping(){mapping=false;if(boundary.length<3){alert('Capture at least 3 actual GPS boundary points. Walk around the field in order and capture each corner.');return;}const m=polygonMetrics(boundary);$('fieldArea').textContent=(m.area/4046.856).toFixed(3);$('perimeter').textContent=m.perimeter.toFixed(1);$('fieldLength').textContent=m.length.toFixed(1);$('fieldWidth').textContent=m.width.toFixed(1);$('planLength').value=Math.max(.1,m.length).toFixed(1);$('planWidth').value=Math.max(.1,m.width).toFixed(1);alert('GPS boundary saved. Approximate area: '+(m.area/4046.856).toFixed(3)+' acres. GPS accuracy and polygon shape affect the result.');}
+function clearBoundary(){demoDataMode=false;$('dataMode').textContent='No data loaded';boundary=[];liveVehicleXY=null;lastHardwareIntersection='';mapping=false;$('pointCount').textContent='0';drawBoundary();}
+function drawBoundary(){
+ const {c,w,h}=setupCanvas($('mapCanvas'));c.clearRect(0,0,w,h);c.fillStyle='#f8fbf7';c.fillRect(0,0,w,h);c.strokeStyle='#e3ebe3';for(let x=0;x<w;x+=25){c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke()}for(let y=0;y<h;y+=25){c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
+ if(boundary.length){const xy=latLonToLocal(boundary);let minX=Math.min(...xy.map(p=>p.x)),maxX=Math.max(...xy.map(p=>p.x)),minY=Math.min(...xy.map(p=>p.y)),maxY=Math.max(...xy.map(p=>p.y));const pad=28,s=Math.min((w-2*pad)/Math.max(1,maxX-minX),(h-2*pad)/Math.max(1,maxY-minY));const pts=xy.map(p=>({x:pad+(p.x-minX)*s,y:h-pad-(p.y-minY)*s}));c.beginPath();pts.forEach((p,i)=>i?c.lineTo(p.x,p.y):c.moveTo(p.x,p.y));if(pts.length>=3)c.closePath();if(pts.length>=3){c.fillStyle='#cde8c7';c.fill();}c.strokeStyle='#287542';c.lineWidth=2;c.stroke();pts.forEach((p,i)=>{c.fillStyle='#e47e2b';c.beginPath();c.arc(p.x,p.y,5,0,Math.PI*2);c.fill();c.fillStyle='#203b27';c.font='12px Arial';c.fillText(String(i+1),p.x+7,p.y-6);});}
+ c.fillStyle='#365440';c.font='13px Arial';c.fillText(boundary.length?'Captured GPS boundary (local shape; not a map tile)':'Start Phone GPS, then capture each field corner',12,20);
+}
+async function connectESP32(){
+ if(!navigator.bluetooth){alert('Web Bluetooth is unavailable in this browser. Use Chrome or Edge on Android/desktop with HTTPS. iPhone browsers generally do not support Web Bluetooth.');return;}
+ try{ $('bleText').textContent='Choose ESP32 device…';bleDevice=await navigator.bluetooth.requestDevice({filters:[{services:[NUS_SERVICE]}],optionalServices:[NUS_SERVICE]});bleDevice.addEventListener('gattserverdisconnected',onBleDisconnected);bleServer=await bleDevice.gatt.connect();const service=await bleServer.getPrimaryService(NUS_SERVICE);bleCharacteristic=await service.getCharacteristic(NUS_TX);await bleCharacteristic.startNotifications();bleCharacteristic.addEventListener('characteristicvaluechanged',handleBleData);$('bleStatus').textContent='ESP32: Connected';$('bleText').textContent='Connected: '+bleDevice.name;$('bleStatus').style.color='#a8f0b5';$('hardwareData').textContent='ESP32 connected; waiting for GNSS/IMU data.'; }
+ catch(e){$('bleStatus').textContent='ESP32: Not connected';$('bleText').textContent='Connection failed';alert('Could not connect to ESP32: '+e.message+'\nEnsure the ESP32 advertises the Nordic UART Service and is not already connected to another app.');}
+}
+function disconnectESP32(){if(bleDevice&&bleDevice.gatt.connected)bleDevice.gatt.disconnect();onBleDisconnected();}
+function onBleDisconnected(){bleCharacteristic=null;bleServer=null;$('bleStatus').textContent='ESP32: Disconnected';$('bleText').textContent='Not connected';$('imuText').textContent='Waiting for ESP32 data';$('hardwareData').textContent=latestPosition?'ESP32 disconnected. Live browser device location can still be used.':'ESP32 disconnected. Start Phone GPS to use browser location, or load demo data.';}
+function handleBleData(event){
+ const value=new TextDecoder().decode(event.target.value);bleBuffer+=value;let lines=bleBuffer.split(/\r?\n/);bleBuffer=lines.pop();
+ for(const line of lines){if(!line.trim())continue;try{
+   const d=JSON.parse(line);latestHardware=d;latestHardwareAt=Date.now();
+   const hasFix=Number.isFinite(Number(d.lat))&&Number.isFinite(Number(d.lon))&&Boolean(d.fix);
+   if(hasFix){$('gpsCoordinates').textContent=Number(d.lat).toFixed(7)+', '+Number(d.lon).toFixed(7);$('gpsAccuracy').textContent='±'+(Number(d.accuracy)||0).toFixed(1)+' m (NEO-8M)';$('externalFixStatus').textContent='Valid fix';setGpsStatus('External NEO-8M fix',true);updateLiveVehiclePosition(d);}
+   else {$('externalFixStatus').textContent='No valid fix';}
+   if(d.speed!=null){$('externalSpeed').textContent=Number(d.speed).toFixed(1)+' km/h';$('speed').textContent=Number(d.speed).toFixed(1);}
+   if(d.roll!=null||d.pitch!=null||d.yaw!=null){$('imuText').textContent='Roll '+Number(d.roll||0).toFixed(1)+'°, Pitch '+Number(d.pitch||0).toFixed(1)+'°, Yaw '+Number(d.yaw||0).toFixed(1)+'°';$('externalHeading').textContent=Number(d.yaw||0).toFixed(1);}
+   $('hardwareData').textContent='Live ESP32 telemetry · '+new Date().toLocaleTimeString()+' · '+(hasFix?'GNSS fix valid':'waiting for GNSS fix');$('bleText').textContent='Connected · telemetry received';
+ }catch(e){$('hardwareData').textContent='Waiting for complete JSON telemetry line';}}
+}
+function updateLiveVehiclePosition(d){
+ if(boundary.length<2){$('guidanceMessage').textContent='Live GNSS received. Capture at least two ordered boundary points to align the grid.';return;}
+ const xy=latLonToLocal([{lat:boundary[0].lat,lon:boundary[0].lon},{lat:boundary[1].lat,lon:boundary[1].lon},{lat:Number(d.lat),lon:Number(d.lon)}]);
+ const origin=xy[0], edge=xy[1], pos=xy[2], ex=edge.x-origin.x,ey=edge.y-origin.y,L=Math.hypot(ex,ey);if(L<0.5)return;
+ const ux=ex/L,uy=ey/L;let x=(pos.x-origin.x)*ux+(pos.y-origin.y)*uy;let y=-(pos.x-origin.x)*uy+(pos.y-origin.y)*ux;
+ // Use field dimensions as the plan frame; clamp only for display, not for GPS data.
+ liveVehicleXY={x,y};drawGuidance();
+ const sx=Math.max(.01,plan.plantSpacing),sy=Math.max(.01,plan.rowSpacing);const nx=Math.round(x/sx),ny=Math.round(y/sy);const dx=x-nx*sx,dy=y-ny*sy;const dist=Math.hypot(dx,dy);const configuredRadius=Math.max(.5,Number($('intersectionRadius').value)||3);const radius=Math.max(configuredRadius,Number(d.accuracy)||0);
+ if(x>=0&&x<=plan.length&&y>=0&&y<=plan.width&&dist<=radius){const key=nx+':'+ny;if(key!==lastHardwareIntersection){beep();lastHardwareIntersection=key;$('guidanceMessage').textContent='🔔 NEAR GRID INTERSECTION · '+dist.toFixed(1)+' m from planned point'+(d.source==='device'?' · device location':'');}}
+ else {lastHardwareIntersection='';const offX=x<0||x>plan.length,offY=y<0||y>plan.width;$('guidanceMessage').textContent=(offX||offY)?'⚠ GNSS position is outside the planned grid':'Live GNSS · '+dist.toFixed(1)+' m from nearest grid intersection';}
+}
+function drawGuidance(){
+ const {c,w,h}=setupCanvas($('guidanceCanvas'));c.clearRect(0,0,w,h);c.fillStyle='#f8fbf7';c.fillRect(0,0,w,h);
+ const pad=30,scale=Math.min((w-pad*2)/plan.length,(h-pad*2)/plan.width),fw=plan.length*scale,fh=plan.width*scale,x=(w-fw)/2,y=(h-fh)/2;
+ c.fillStyle='#e6f2dc';c.fillRect(x,y,fw,fh);c.strokeStyle='#245f35';c.lineWidth=2;c.strokeRect(x,y,fw,fh);
+ c.strokeStyle='#438c52';c.lineWidth=1;
+ for(let xx=plan.rowSpacing;xx<plan.width;xx+=plan.rowSpacing){c.beginPath();c.moveTo(x+xx*scale,y);c.lineTo(x+xx*scale,y+fh);c.stroke();}
+ c.strokeStyle='#90b5d8';c.setLineDash([4,4]);for(let yy=plan.plantSpacing;yy<plan.length;yy+=plan.plantSpacing){c.beginPath();c.moveTo(x,y+yy*scale);c.lineTo(x+fw,y+yy*scale);c.stroke()}c.setLineDash([]);
+ if(liveVehicleXY){const px=x+Math.max(0,Math.min(plan.length,liveVehicleXY.x))*scale,py=y+fh-Math.max(0,Math.min(plan.width,liveVehicleXY.y))*scale;c.fillStyle='#1565c0';c.beginPath();c.arc(px,py,8,0,Math.PI*2);c.fill();c.strokeStyle='#fff';c.lineWidth=2;c.stroke();c.fillStyle='#26382a';c.font='12px Arial';c.fillText(demoDataMode?'Demo vehicle (simulated)':'Live GNSS vehicle',x+4,y+fh+18);}
+ else if(simTimer!==null){let row=Math.floor(simStep/Math.max(1,Math.floor(plan.length/.2)))%plan.rows;let along=(simStep%Math.max(1,Math.floor(plan.length/.2)))/Math.max(1,Math.floor(plan.length/.2));let px=x+(row%2===0?along:1-along)*fw;let py=y+Math.min(plan.width,(row+.5)*plan.rowSpacing)*scale;c.fillStyle='#d93636';c.beginPath();c.arc(px,py,7,0,Math.PI*2);c.fill();c.fillStyle='#26382a';c.font='12px Arial';c.fillText('Vehicle (simulation)',x+4,y+fh+18);}
+ c.fillStyle='#365440';c.font='12px Arial';c.fillText('Grid-based guidance preview',10,18);
+}
+async function enableSound(){try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();await audioCtx.resume();beep();$('guidanceMessage').textContent='🔊 Intersection sound enabled';}catch(e){alert('Audio is unavailable in this browser.');}}
+function beep(){
+ try{audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();const osc=audioCtx.createOscillator(),gain=audioCtx.createGain();osc.type='sine';osc.frequency.value=880;gain.gain.setValueAtTime(.0001,audioCtx.currentTime);gain.gain.exponentialRampToValueAtTime(.18,audioCtx.currentTime+.015);gain.gain.exponentialRampToValueAtTime(.0001,audioCtx.currentTime+.18);osc.connect(gain);gain.connect(audioCtx.destination);osc.start();osc.stop(audioCtx.currentTime+.2);}catch(e){console.warn('Audio unavailable',e)}
+}
+function startGuidanceSimulation(){
+ if(simTimer!==null){clearInterval(simTimer);simTimer=null;$('startSimulation').textContent='▶ Start Vehicle';$('reportStatus').textContent='Paused';return;}
+ // Audio is enabled from this user click. The simulation beeps at each plant/row grid crossing.
+ audioCtx=audioCtx||new (window.AudioContext||window.webkitAudioContext)();if(audioCtx.state==='suspended')audioCtx.resume();
+ simStep=0;lastBeepStep=-1;$('startSimulation').textContent='⏸ Pause Vehicle';$('reportStatus').textContent='In Progress';
+ const stepsPerRow=Math.max(2,Math.floor(plan.length/Math.max(.2,plan.plantSpacing)));
+ simTimer=setInterval(()=>{
+   simStep++;const row=Math.min(plan.rows,Math.floor(simStep/stepsPerRow)+1),progress=Math.min(100,Math.round(simStep/(stepsPerRow*plan.rows)*100));
+   $('currentRow').textContent=row;$('speed').textContent='2.0';$('deviation').textContent='0';$('navProgress').textContent=progress;
+   $('progressText').textContent=progress+'%';$('progressBar').style.width=progress+'%';$('completedRows').textContent=Math.min(plan.rows,Math.floor(progress/100*plan.rows));$('remainingRows').textContent=Math.max(0,plan.rows-Math.floor(progress/100*plan.rows));$('coveredArea').textContent=(plan.length*plan.width/4046.856*progress/100).toFixed(3)+' acres';$('eta').textContent=progress>=100?'Complete':Math.ceil((100-progress)/5)+' min';
+   const onIntersection=(simStep%Math.max(1,Math.round(plan.plantSpacing/.2))===0);
+   if(onIntersection&&lastBeepStep!==simStep){beep();lastBeepStep=simStep;$('guidanceMessage').textContent='🔔 GRID INTERSECTION REACHED';}
+   else $('guidanceMessage').textContent='✓ ON TRACK';
+   if(demoDataMode && boundary.length>=2){
+     const rowIndex=Math.min(plan.rows-1,Math.floor(simStep/stepsPerRow));
+     const along=(simStep%stepsPerRow)/stepsPerRow;
+     const x=(rowIndex%2===0?along:1-along)*plan.length;
+     const y=Math.min(plan.width-0.05,(rowIndex+0.5)*plan.rowSpacing);
+     const origin=boundary[0];
+     const lat=origin.lat+(y/111320);
+     const lon=origin.lon+(x/(111320*Math.cos(origin.lat*Math.PI/180)));
+     const heading=(rowIndex%2===0?90:270);
+     const demo={lat,lon,accuracy:1.5,fix:true,speed:2.0,roll:Math.sin(simStep/8)*1.2,pitch:Math.cos(simStep/9)*0.8,yaw:heading,demo:true};
+     latestHardware=demo;latestHardwareAt=Date.now();
+     $('gpsCoordinates').textContent=lat.toFixed(6)+', '+lon.toFixed(6);$('gpsAccuracy').textContent='SIMULATED ±1.5 m';$('externalFixStatus').textContent='Simulated fix';$('externalSpeed').textContent='2.0 km/h';$('externalHeading').textContent=heading.toFixed(1)+'°';$('imuText').textContent='SIMULATED · Roll '+demo.roll.toFixed(1)+'°, Pitch '+demo.pitch.toFixed(1)+'°, Yaw '+heading+'°';
+     $('hardwareData').textContent='SYSTEM DEMO DATA ONLY · simulated GNSS/IMU · no hardware connected';
+     updateLiveVehiclePosition(demo);
+   }
+   drawGuidance();
+   if(progress>=100){clearInterval(simTimer);simTimer=null;$('startSimulation').textContent='↻ Restart Vehicle';$('reportStatus').textContent='Completed';}
+ },250);
+}
+function manualMove(direction){$('guidanceMessage').textContent=direction==='left'?'⬅ LEFT — adjust toward the guide line':direction==='right'?'RIGHT ➡ — adjust toward the guide line':'⬆ ON TRACK';}
+window.addEventListener('resize',()=>{drawPlan();drawBoundary();drawGuidance();});
+calculatePlan();drawBoundary();drawGuidance();
+</script>
+
+</body>
+
+</html>
